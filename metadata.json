@@ -1,0 +1,8 @@
+{
+  "name": "Macau Tourist Attraction Crowd Flow Prediction & Peak-Avoidance Route Planning System",
+  "description": "Macau Tourist Attraction Crowd Flow Prediction & Peak-Avoidance Route Planning System",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
