@@ -34,7 +34,7 @@ class SourceRateLimited(OSError):
 
 
 class PacedLiveSource(LiveSource):
-    """Fetch three recent official days, spacing requests from a shared runner."""
+    """Fetch four recent official days, spacing requests from a shared runner."""
 
     def __init__(self):
         super().__init__()
@@ -63,10 +63,10 @@ class PacedLiveSource(LiveSource):
         now_minute = minute_number(now)
         if target_minute < now_minute - 1440 or target_minute > now_minute + 480:
             raise ValueError("Live target is outside supported time range")
-        dates = [now.date() - timedelta(days=offset) for offset in range(2, -1, -1)]
-        # _get_json serializes and spaces the three network calls, even though
+        dates = [now.date() - timedelta(days=offset) for offset in range(3, -1, -1)]
+        # _get_json serializes and spaces the four network calls, even though
         # _day retains the existing thread-safe caching behavior.
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=4) as pool:
             daily_rows = list(pool.map(lambda day: self._day(region, day), dates))
         records = {row[0]: row for rows in daily_rows for row in rows}
         rows = sorted(records.values())

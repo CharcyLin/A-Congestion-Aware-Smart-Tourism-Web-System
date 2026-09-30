@@ -2,7 +2,7 @@
 
 import json
 import unittest
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from urllib.error import HTTPError
 from unittest.mock import patch
 
@@ -87,6 +87,31 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaises(SourceRateLimited):
                 source._get_json("https://example.org", {})
             self.assertEqual(upstream.call_count, 1)
+
+    def test_midnight_collection_fetches_four_calendar_days(self):
+        class MidnightClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 10, 1, 0, 25, tzinfo=MACAU_TZ)
+
+        source = PacedLiveSource()
+
+        def readings(region, day):
+            self.assertEqual(region, "S14")
+            count = (0 if day == date(2026, 10, 1) else
+                     94 if day == date(2026, 9, 30) else 96)
+            start = minute_number(datetime.combine(day, datetime.min.time()))
+            return [(start + index * 15, 500.0, 2) for index in range(count)]
+
+        with patch("collect_derived_forecasts.datetime", MidnightClock), \
+             patch.object(source, "_day", side_effect=readings) as get_day, \
+             patch.object(source, "_weather", return_value={}):
+            rows, _ = source.data_for("S14", minute_number(datetime(2026, 10, 1, 0, 30)))
+
+        self.assertEqual({call.args[1] for call in get_day.call_args_list},
+                         {date(2026, 9, 28), date(2026, 9, 29),
+                          date(2026, 9, 30), date(2026, 10, 1)})
+        self.assertIsNotNone(continuous_tail(rows, minute_number(datetime(2026, 10, 1, 0, 25))))
 
 
 if __name__ == "__main__":
