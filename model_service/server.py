@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from lstm_runtime import LSTMRuntime
+from forecast_snapshot import ForecastSnapshotSource
 from live_features import MACAU_TZ, LiveSource, feature_row, holiday_stage
 from poi_mapping import POI_TO_REGION
 
@@ -37,6 +38,9 @@ class Predictor:
         self.model_sha256 = sha256(weights_path.read_bytes()).hexdigest()
         self.model = LSTMRuntime(weights_path)
         self.live = LiveSource()
+        snapshot_url = os.environ.get("LSTM_FORECAST_SNAPSHOT_URL", "").strip()
+        self.snapshot = (ForecastSnapshotSource(snapshot_url, self.model_sha256)
+                         if snapshot_url else None)
         self.feature_scale = np.asarray(self.metadata["feature_scale"], dtype=np.float32)
         self.feature_offset = np.asarray(self.metadata["feature_offset"], dtype=np.float32)
         self.history = {}
@@ -135,6 +139,22 @@ class Predictor:
 
         live_context = {}
         for request_id, item, region, target_minute in sorted(live_requests, key=lambda row: row[3]):
+            snapshot = getattr(self, "snapshot", None)
+            if snapshot is not None:
+                try:
+                    forecast = snapshot.lookup(region, target_minute)
+                    response = self._response(request_id, item, region,
+                                              forecast["predicted_people"], forecast["source"])
+                    response.update({
+                        "forecast_origin": "derived_snapshot",
+                        "snapshot_generated_at": forecast["snapshot_generated_at"],
+                        "observed_through": forecast["observed_through"],
+                    })
+                    results[request_id] = response
+                    continue
+                except (ValueError, OSError, KeyError, TimeoutError) as error:
+                    print(f"[forecast-snapshot] {region} {item['date_str']} {item['visit_time']}: "
+                          f"{type(error).__name__}: {error}", flush=True)
             try:
                 predicted, source = self._live_prediction(region, target_minute, live_context)
                 results[request_id] = self._response(request_id, item, region, predicted, source)
@@ -199,6 +219,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"status": "ok", "model_loaded": True,
                              "model_sha256": self.predictor.model_sha256,
                              "mode": "May historical and live when official history is available",
+                             "forecast_snapshot_configured": bool(self.predictor.snapshot),
                              "supported_pois": len(POI_TO_REGION)})
         elif self.path == "/realtime":
             try:

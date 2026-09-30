@@ -31,6 +31,20 @@ class KnownLiveData:
         return list(self.records), self.rain
 
 
+class DerivedSnapshot:
+    def lookup(self, region, target_minute):
+        assert region == "S14"
+        assert target_minute == minute_number("2026-09-30", "12:30")
+        return {"predicted_people": 400.0, "source": "lstm_live_recursive",
+                "snapshot_generated_at": "2026-09-30T12:00:00+08:00",
+                "observed_through": "2026-09-30T11:45"}
+
+
+class UnavailableSnapshot:
+    def lookup(self, *_args):
+        raise ValueError("Snapshot is stale")
+
+
 class PredictorTests(unittest.TestCase):
     def test_regional_crowd_score_tracks_training_quantiles(self):
         predictor = object.__new__(Predictor)
@@ -103,6 +117,7 @@ class PredictorTests(unittest.TestCase):
         }
         predictor.model = FakeModel()
         predictor.live = KnownLiveData(records, rain)
+        predictor.snapshot = UnavailableSnapshot()
         predictor.feature_scale = np.ones(29, dtype=np.float32)
         predictor.feature_offset = np.zeros(29, dtype=np.float32)
         predictor.history = {"S14": (np.array([minute_number("2026-05-01", "00:00")]),
@@ -111,6 +126,23 @@ class PredictorTests(unittest.TestCase):
                                      "date_str": "2026-09-30", "visit_time": "12:30"}])
         self.assertEqual(result["q0"]["predicted_people"], 500)
         self.assertEqual(result["q0"]["source"], "lstm_live_recursive")
+
+    def test_derived_snapshot_response_preserves_exact_poi_and_arrival(self):
+        predictor = object.__new__(Predictor)
+        predictor.metadata = {
+            "lookback": 96,
+            "spot_scalers": {"S14": {"offset": 0.0, "scale": 0.001, "name": "大三巴片区"}},
+        }
+        predictor.live = NoLiveData()
+        predictor.snapshot = DerivedSnapshot()
+        predictor.history = {"S14": (np.array([minute_number("2026-05-01", "00:00")]),
+                                      np.zeros((1, 29), dtype=np.float32))}
+        result = predictor.predict([{"request_id": "q0", "id": "dest_1", "poi_id": "ruins",
+                                     "date_str": "2026-09-30", "visit_time": "12:30"}])
+        self.assertEqual(result["q0"]["predicted_people"], 400)
+        self.assertEqual(result["q0"]["poi_id"], "ruins")
+        self.assertEqual(result["q0"]["visit_time"], "12:30")
+        self.assertEqual(result["q0"]["forecast_origin"], "derived_snapshot")
 
 
 if __name__ == "__main__":
