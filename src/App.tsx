@@ -353,6 +353,7 @@ const translations = {
     weather_no_rain: "No Rain",
     weather_light_rain: "Light Rain",
     weather_heavy_rain: "Heavy Rain",
+    weather_unavailable: "Weather unavailable",
     weather_label: "Weather / Rain",
     holiday_stage_label: "Holiday Phase",
     holiday_stage_none: "Regular Day",
@@ -583,6 +584,7 @@ const translations = {
     weather_no_rain: "无雨/晴天",
     weather_light_rain: "小雨/阴雨",
     weather_heavy_rain: "大雨/暴雨",
+    weather_unavailable: "天气数据暂不可用",
     weather_label: "天气与降雨",
     holiday_stage_label: "节假日阶段",
     holiday_stage_none: "非节假日 (常规工作日)",
@@ -813,6 +815,7 @@ const translations = {
     weather_no_rain: "無雨/晴天",
     weather_light_rain: "小雨/陰雨",
     weather_heavy_rain: "大雨/暴雨",
+    weather_unavailable: "天氣資料暫不可用",
     weather_label: "天氣與降雨",
     holiday_stage_label: "節假日階段",
     holiday_stage_none: "非節假日 (常規工作日)",
@@ -1043,6 +1046,7 @@ const translations = {
     weather_no_rain: "Sem Chuva",
     weather_light_rain: "Chuva Fraca",
     weather_heavy_rain: "Chuva Forte",
+    weather_unavailable: "Dados meteorológicos indisponíveis",
     weather_label: "Clima / Chuva",
     holiday_stage_label: "Fase do Feriado",
     holiday_stage_none: "Dia Útil Normal",
@@ -1235,7 +1239,8 @@ export default function App() {
   const [isLstmAssisted, setIsLstmAssisted] = useState(false);
   const [realtimeEnv, setRealtimeEnv] = useState<{
     source: string;
-    rainfall_prev_1h_mm: number;
+    rainfall_prev_1h_mm: number | null;
+    weather_available: boolean;
     holiday_stage: 'none' | 'pre' | 'in' | 'post';
     is_weekend: boolean;
     date: string;
@@ -1243,7 +1248,8 @@ export default function App() {
     connected_to_python: boolean;
   }>({
     source: 'macau_calendar_auto',
-    rainfall_prev_1h_mm: 0.0,
+    rainfall_prev_1h_mm: null,
+    weather_available: false,
     holiday_stage: 'none',
     is_weekend: false,
     date: formatCurrentDate24h().slice(0, 10).replaceAll('/', '-'),
@@ -1258,7 +1264,9 @@ export default function App() {
         const data = await res.json();
         setRealtimeEnv(data);
         if (envMode === 'auto') {
-          setRainfallMm(data.rainfall_prev_1h_mm ?? 0.0);
+          if (data.weather_available && Number.isFinite(data.rainfall_prev_1h_mm)) {
+            setRainfallMm(data.rainfall_prev_1h_mm);
+          }
           setHolidayStage(data.holiday_stage ?? 'none');
         }
       }
@@ -1943,7 +1951,7 @@ export default function App() {
     }),
     startTime,
     transportMode,
-    rainfall_prev_1h_mm: rainfallMm,
+    rainfall_prev_1h_mm: envMode === 'auto' ? realtimeEnv.rainfall_prev_1h_mm : rainfallMm,
     date: envMode === 'auto' ? realtimeEnv.date : previewDateMap[holidayStage],
     holidayStage,
     keepOrder: true,
@@ -2089,7 +2097,7 @@ export default function App() {
           waypoints: payloadWaypoints,
           startTime: startTime || getLiveBeijingTime().timeStr,
           transportMode: mode,
-          rainfall_prev_1h_mm: rainfallMm,
+          rainfall_prev_1h_mm: envMode === 'auto' ? realtimeEnv.rainfall_prev_1h_mm : rainfallMm,
           date: envMode === 'auto' ? realtimeEnv.date : dateMap[holidayStage],
           holidayStage,
           keepOrder: Boolean(options?.keepOrder)
@@ -3254,7 +3262,9 @@ export default function App() {
                 <button
                   onClick={() => {
                     setEnvMode('auto');
-                    setRainfallMm(realtimeEnv.rainfall_prev_1h_mm);
+                    if (realtimeEnv.weather_available && realtimeEnv.rainfall_prev_1h_mm !== null) {
+                      setRainfallMm(realtimeEnv.rainfall_prev_1h_mm);
+                    }
                     setHolidayStage(realtimeEnv.holiday_stage);
                     if (isOptimized) handleOptimizeRoute();
                   }}
@@ -3280,6 +3290,9 @@ export default function App() {
                   <CloudRain size={13} className="text-blue-500" />
                   <span>{t('weather_label')}</span>
                 </label>
+                {envMode === 'auto' && !realtimeEnv.weather_available && (
+                  <p className="text-xs text-amber-700">{t('weather_unavailable')}</p>
+                )}
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'no_rain', labelKey: 'weather_no_rain', val: 0.0, icon: Sun, color: 'text-amber-500' },
@@ -3287,7 +3300,7 @@ export default function App() {
                     { id: 'heavy_rain', labelKey: 'weather_heavy_rain', val: 20.0, icon: CloudRain, color: 'text-blue-600' }
                   ].map(r => {
                     const Icon = r.icon;
-                    const isSelected = rainfallMm === r.val;
+                    const isSelected = envMode === 'scenario' && rainfallMm === r.val;
                     return (
                       <button
                         key={r.val}

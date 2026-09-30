@@ -22,7 +22,8 @@ import {
   Loader2, 
   Sparkles, 
   RotateCcw,
-  History
+  History,
+  AlertCircle
 } from 'lucide-react';
 import { MACAU_POIS } from '../constants';
 
@@ -109,6 +110,9 @@ export const PlanContent: React.FC<PlanContentProps> = ({
   onClearPlan,
   onOpenHistory
 }) => {
+  const autoWeatherAvailable = realtimeEnv.weather_available &&
+    typeof realtimeEnv.rainfall_prev_1h_mm === 'number' &&
+    Number.isFinite(realtimeEnv.rainfall_prev_1h_mm);
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
       <div className="p-3.5 border-b border-gray-100 bg-white space-y-3 shrink-0">
@@ -191,6 +195,7 @@ export const PlanContent: React.FC<PlanContentProps> = ({
             <div className="flex items-center gap-2 min-w-0 pr-2">
               <div className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
                 {envMode === 'auto' ? (
+                  !autoWeatherAvailable ? <AlertCircle size={12} className="text-amber-600" /> :
                   realtimeEnv.rainfall_prev_1h_mm <= 0 ? <Sun size={12} className="text-amber-600" /> :
                   realtimeEnv.rainfall_prev_1h_mm <= 5 ? <CloudDrizzle size={12} className="text-sky-600" /> :
                   <CloudRain size={12} className="text-blue-600" />
@@ -207,7 +212,9 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                 <span className="text-[10px] font-semibold bg-white border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded shrink-0 shadow-2xs flex items-center gap-1">
                   {envMode === 'auto' ? (
                     <>
-                      {realtimeEnv.rainfall_prev_1h_mm <= 0 ? (
+                      {!autoWeatherAvailable ? (
+                        <span className="text-amber-700">{t('weather_unavailable')}</span>
+                      ) : realtimeEnv.rainfall_prev_1h_mm <= 0 ? (
                         <span className="flex items-center gap-0.5 text-amber-600"><Sun size={10} /> {t('weather_no_rain')}</span>
                       ) : realtimeEnv.rainfall_prev_1h_mm <= 5 ? (
                         <span className="flex items-center gap-0.5 text-sky-600"><CloudDrizzle size={10} /> {t('weather_light_rain')}</span>
@@ -262,7 +269,7 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                   <button
                     onClick={() => {
                       setEnvMode('auto');
-                      setRainfallMm(realtimeEnv.rainfall_prev_1h_mm);
+                      if (autoWeatherAvailable) setRainfallMm(realtimeEnv.rainfall_prev_1h_mm);
                       setHolidayStage(realtimeEnv.holiday_stage);
                       if (isOptimized) handleOptimizeRoute();
                     }}
@@ -296,7 +303,9 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                       <span>{t('weather_label')}:</span>
                     </div>
                     <div className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-0.5 rounded text-[10px] font-bold text-gray-700">
-                      {realtimeEnv.rainfall_prev_1h_mm <= 0 ? (
+                      {!autoWeatherAvailable ? (
+                        <span className="text-amber-700">{t('weather_unavailable')}</span>
+                      ) : realtimeEnv.rainfall_prev_1h_mm <= 0 ? (
                         <>
                           <Sun size={12} className="text-amber-500" />
                           <span>{t('weather_no_rain')}</span>
@@ -329,7 +338,9 @@ export const PlanContent: React.FC<PlanContentProps> = ({
 
                   <div className="flex items-center justify-between pt-1 text-[10px] text-gray-500">
                     <span className="truncate pr-1">
-                      {realtimeEnv.connected_to_python
+                      {!autoWeatherAvailable
+                        ? (lang === 'en' ? 'Weather unavailable · calendar estimate' : lang === 'pt' ? 'Meteorologia indisponível · calendário estimado' : lang === 'zh-TW' ? '天氣資料暫不可用 · 節假日曆估算' : '天气数据暂不可用 · 节假日历估算')
+                        : realtimeEnv.connected_to_python
                         ? (lang === 'en' ? '✓ Open-Meteo weather · model calendar' : lang === 'pt' ? '✓ Meteorologia Open-Meteo · calendário do modelo' : '✓ Open-Meteo 天气 · 模型节假日历')
                         : (lang === 'en' ? '✓ Open-Meteo weather · calendar estimate' : lang === 'pt' ? '✓ Meteorologia Open-Meteo · calendário estimado' : '✓ Open-Meteo 天气 · 节假日历估算')}
                     </span>

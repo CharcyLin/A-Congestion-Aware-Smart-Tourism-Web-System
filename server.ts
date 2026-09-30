@@ -50,9 +50,10 @@ app.get("/api/health", (_req, res) => {
 // Auto-detected Real-Time Government Weather & Holiday API
 app.get("/api/realtime/environment", async (_req, res) => {
   try {
+    const now = new Date();
     const dateParts = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Macau", year: "numeric", month: "2-digit", day: "2-digit"
-    }).formatToParts(new Date());
+    }).formatToParts(now);
     const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
     const dateStr = `${dateValues.year}-${dateValues.month}-${dateValues.day}`;
     const [year, month, day] = dateStr.split("-").map(Number);
@@ -65,33 +66,50 @@ app.get("/api/realtime/environment", async (_req, res) => {
         const pyRes = await fetch(`${currentLstmServiceUrl}/realtime`, { signal: AbortSignal.timeout(7000) });
         if (pyRes.ok) {
           const pyData = await pyRes.json();
-          return res.json({
-            source: "python_live_weather_calendar",
-            rainfall_prev_1h_mm: pyData.rainfall_prev_1h_mm ?? 0.0,
-            holiday_stage: pyData.holiday_stage ?? "none",
-            is_weekend: isWeekend,
-            date: dateStr,
-            description: pyData.description || "Live weather and forecast holiday calendar",
-            connected_to_python: true
-          });
+          const rain = Number(pyData.rainfall_prev_1h_mm);
+          if (pyData.rainfall_prev_1h_mm != null && Number.isFinite(rain) && rain >= 0) {
+            return res.json({
+              source: "python_live_weather_calendar",
+              rainfall_prev_1h_mm: rain,
+              weather_available: true,
+              holiday_stage: pyData.holiday_stage ?? "none",
+              is_weekend: isWeekend,
+              date: dateStr,
+              description: pyData.description || "Live weather and forecast holiday calendar",
+              connected_to_python: true
+            });
+          }
         }
       } catch (err) {
         console.warn("Python realtime endpoint unavailable:", err);
       }
     }
 
-    // 2. Direct Open-Meteo live-weather fallback at the Macao coordinates.
-    let liveRainfall = 0.0;
-    let weatherNote = "Clear (Open-Meteo Macao coordinates)";
+    // 2. Direct Open-Meteo fallback uses the last completed Macao hour,
+    // matching the model's rainfall_prev_1h_mm feature.
+    let liveRainfall: number | null = null;
+    let weatherNote = "Live rainfall unavailable";
     try {
+      const hourParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Macau", hour: "2-digit", hourCycle: "h23"
+      }).formatToParts(now);
+      const hour = Number(hourParts.find(part => part.type === "hour")?.value);
+      const previousHourStamp = new Date(Date.UTC(year, month - 1, day, hour - 1))
+        .toISOString().slice(0, 13) + ":00";
       const weatherRes = await fetch(
-        "https://api.open-meteo.com/v1/forecast?latitude=22.1987&longitude=113.5439&current=precipitation,rain&timezone=Asia%2FMacau",
+        "https://api.open-meteo.com/v1/forecast?latitude=22.1987&longitude=113.5439&hourly=precipitation&past_days=4&forecast_days=2&timezone=Asia%2FMacau",
         { signal: AbortSignal.timeout(3000) }
       );
       if (weatherRes.ok) {
         const wData = await weatherRes.json();
-        liveRainfall = Number(wData.current?.precipitation || wData.current?.rain || 0.0);
-        weatherNote = liveRainfall > 0 ? `Rainfall recorded: ${liveRainfall.toFixed(1)}mm` : "Clear / Dry (0.0mm)";
+        const hourIndex = Array.isArray(wData.hourly?.time)
+          ? wData.hourly.time.indexOf(previousHourStamp) : -1;
+        const reportedRain = hourIndex >= 0 ? wData.hourly?.precipitation?.[hourIndex] : null;
+        const parsedRain = Number(reportedRain);
+        if (reportedRain != null && Number.isFinite(parsedRain) && parsedRain >= 0) {
+          liveRainfall = parsedRain;
+          weatherNote = parsedRain > 0 ? `Previous-hour rainfall: ${parsedRain.toFixed(1)}mm` : "No rainfall in previous hour (0.0mm)";
+        }
       }
     } catch (e) {
       console.warn("Direct live weather fetch fallback:", e);
@@ -111,12 +129,13 @@ app.get("/api/realtime/environment", async (_req, res) => {
     }
 
     return res.json({
-      source: "open_meteo_calendar_fallback",
+      source: liveRainfall === null ? "weather_unavailable_calendar_fallback" : "open_meteo_calendar_fallback",
       rainfall_prev_1h_mm: liveRainfall,
+      weather_available: liveRainfall !== null,
       holiday_stage: holidayStage,
       is_weekend: isWeekend,
       date: dateStr,
-      description: `Live Weather: ${weatherNote} | ${holidayStage === 'none' ? 'Regular Non-Holiday' : `Holiday Phase: ${holidayStage}`}`,
+      description: `${weatherNote} | ${holidayStage === 'none' ? 'Regular Non-Holiday' : `Holiday Phase: ${holidayStage}`}`,
       connected_to_python: false
     });
   } catch (err: any) {
@@ -241,6 +260,9 @@ app.post("/api/route/optimize", async (req, res) => {
       keepOrder = false,
       previewOnly = false
     } = req.body;
+    const routeRainfall = rainfall_prev_1h_mm !== null && rainfall_prev_1h_mm !== '' &&
+      Number.isFinite(Number(rainfall_prev_1h_mm)) && Number(rainfall_prev_1h_mm) >= 0
+      ? Number(rainfall_prev_1h_mm) : null;
 
     const minimumStops = previewOnly ? 1 : 2;
     if (!Array.isArray(waypoints) || waypoints.length < minimumStops) {
@@ -397,7 +419,9 @@ app.post("/api/route/optimize", async (req, res) => {
       const dayFactor = arrHour < 8 || arrHour > 22 ? 0.28 : 1.0;
 
       let rainFactor = 1.0;
-      const rain = Number(rainfall_prev_1h_mm) || 0;
+      // The embedded estimate uses a dry assumption when weather is unknown;
+      // the response still exposes null so callers cannot mistake it for observed 0 mm.
+      const rain = routeRainfall ?? 0;
       if (rain > 10) {
         rainFactor = isIndoor ? 1.18 : 0.58;
       } else if (rain > 0) {
@@ -514,7 +538,7 @@ app.post("/api/route/optimize", async (req, res) => {
       const requestBatch = async (batch: ModelQuery[]) => {
         const payload = {
           spots: batch,
-          rainfall_prev_1h_mm: Number(rainfall_prev_1h_mm) || 0.0,
+          rainfall_prev_1h_mm: routeRainfall,
           date
         };
         for (const endpoint of ["/predict"]) {
@@ -733,7 +757,7 @@ app.post("/api/route/optimize", async (req, res) => {
         thresholdFallbackUsed: crowd.thresholdFallbackUsed,
         thresholdFallbackType: crowd.thresholdFallbackType,
         thresholdWarning: crowd.thresholdWarning,
-        rainfallMm: rainfall_prev_1h_mm
+        rainfallMm: routeRainfall
       });
 
       currentTime = departureTime;
@@ -782,7 +806,8 @@ app.post("/api/route/optimize", async (req, res) => {
         lstmAssisted: optimizedWaypoints.slice(1).some((stop: any) =>
           stop.predictionSource !== "embedded_estimate" && stop.predictionSource !== "unavailable"),
         lstmServiceUrl: currentLstmServiceUrl,
-        rainfallMm: rainfall_prev_1h_mm,
+        rainfallMm: routeRainfall,
+        weatherInputAvailable: routeRainfall !== null,
         threshold_source: USER_FACING_THRESHOLD_SOURCE,
         threshold_source_period: USER_FACING_THRESHOLD_SOURCE_PERIOD,
         thresholdSummary,

@@ -11,7 +11,8 @@ interface SettingsContentProps {
   onTestLstm?: () => void;
   realtimeEnv?: {
     source: string;
-    rainfall_prev_1h_mm: number;
+    rainfall_prev_1h_mm: number | null;
+    weather_available: boolean;
     holiday_stage: string;
     is_weekend: boolean;
     date: string;
@@ -158,7 +159,11 @@ export const SettingsContent: React.FC<SettingsContentProps> = ({
           <div className="grid grid-cols-2 gap-2 text-[11px]">
             <div className="p-2 bg-white rounded-lg border border-gray-200">
               <span className="text-gray-400 block text-[10px]">{t('past_1h_rain')}</span>
-              <span className="font-bold text-gray-800 text-xs">{realtimeEnv.rainfall_prev_1h_mm} mm</span>
+              <span className="font-bold text-gray-800 text-xs">
+                {realtimeEnv.weather_available && realtimeEnv.rainfall_prev_1h_mm !== null
+                  ? `${realtimeEnv.rainfall_prev_1h_mm} mm`
+                  : t('weather_unavailable')}
+              </span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-gray-200">
               <span className="text-gray-400 block text-[10px]">{t('holiday_stage_text')}</span>
