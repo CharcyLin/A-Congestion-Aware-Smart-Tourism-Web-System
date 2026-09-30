@@ -138,9 +138,11 @@ class Predictor:
             try:
                 predicted, source = self._live_prediction(region, target_minute, live_context)
                 results[request_id] = self._response(request_id, item, region, predicted, source)
-            except (ValueError, OSError, KeyError, IndexError, TimeoutError):
+            except (ValueError, OSError, KeyError, IndexError, TimeoutError) as error:
                 # Missing government or weather observations must not be
                 # represented as a model forecast.
+                print(f"[live-forecast] {region} {item['date_str']} {item['visit_time']}: "
+                      f"{type(error).__name__}: {error}", flush=True)
                 continue
         return results
 
@@ -210,7 +212,8 @@ class Handler(BaseHTTPRequestHandler):
                                  "rainfall_prev_1h_mm": rain,
                                  "holiday_stage": stage,
                                  "description": "Open-Meteo previous-hour precipitation and forecast holiday calendar"})
-            except (ValueError, OSError, KeyError, TimeoutError):
+            except (ValueError, OSError, KeyError, TimeoutError) as error:
+                print(f"[live-weather] {type(error).__name__}: {error}", flush=True)
                 self._json(503, {"error": "live_weather_unavailable"})
         else:
             self._json(404, {"error": "not_found"})
