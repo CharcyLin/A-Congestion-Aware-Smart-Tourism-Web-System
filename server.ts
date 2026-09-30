@@ -33,7 +33,8 @@ const getMapboxProfile = (mode: string) => {
   }
 };
 
-let currentLstmServiceUrl = process.env.LSTM_SERVICE_URL || "";
+let currentLstmServiceUrl = (process.env.LSTM_SERVICE_URL || "").trim().replace(/\/+$/, "");
+const MODEL_COLD_START_TIMEOUT_MS = 90000;
 
 // Health Check & System Status
 app.get("/api/health", (_req, res) => {
@@ -49,29 +50,28 @@ app.get("/api/health", (_req, res) => {
 // Auto-detected Real-Time Government Weather & Holiday API
 app.get("/api/realtime/environment", async (_req, res) => {
   try {
-    const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
-    const month = today.getMonth() + 1; // 1-12
-    const day = today.getDate();
-    const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
+    const dateParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Macau", year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(new Date());
+    const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+    const dateStr = `${dateValues.year}-${dateValues.month}-${dateValues.day}`;
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0 is Sunday
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-    // 1. Check if Python service provides real-time government telemetry
+    // 1. Use the same previous-hour rain and holiday calendar as live LSTM inputs.
     if (currentLstmServiceUrl) {
       try {
-        let pyRes = await fetch(`${currentLstmServiceUrl}/P2323343_LinYuxuan/realtime`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-        if (!pyRes || !pyRes.ok) {
-          pyRes = await fetch(`${currentLstmServiceUrl}/realtime`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-        }
-        if (pyRes && pyRes.ok) {
+        const pyRes = await fetch(`${currentLstmServiceUrl}/realtime`, { signal: AbortSignal.timeout(7000) });
+        if (pyRes.ok) {
           const pyData = await pyRes.json();
           return res.json({
-            source: "python_government_scheduler",
+            source: "python_live_weather_calendar",
             rainfall_prev_1h_mm: pyData.rainfall_prev_1h_mm ?? 0.0,
-            holiday_stage: pyData.holiday_stage ?? (isWeekend ? "pre" : "none"),
+            holiday_stage: pyData.holiday_stage ?? "none",
             is_weekend: isWeekend,
             date: dateStr,
-            description: pyData.description || "Live telemetry from Python Government API scheduler",
+            description: pyData.description || "Live weather and forecast holiday calendar",
             connected_to_python: true
           });
         }
@@ -80,9 +80,9 @@ app.get("/api/realtime/environment", async (_req, res) => {
       }
     }
 
-    // 2. Direct Government Open Data Live Ingestion (Macau SMG Station: Lat 22.1987, Lng 113.5439)
+    // 2. Direct Open-Meteo live-weather fallback at the Macao coordinates.
     let liveRainfall = 0.0;
-    let weatherNote = "Clear (Macau SMG Station)";
+    let weatherNote = "Clear (Open-Meteo Macao coordinates)";
     try {
       const weatherRes = await fetch(
         "https://api.open-meteo.com/v1/forecast?latitude=22.1987&longitude=113.5439&current=precipitation,rain&timezone=Asia%2FMacau",
@@ -97,21 +97,21 @@ app.get("/api/realtime/environment", async (_req, res) => {
       console.warn("Direct live weather fetch fallback:", e);
     }
 
-    // 3. Macau Statutory Public Holidays Calendar Engine (SAFP Government Guidelines)
-    // Major periods: New Year (Jan 1), Lunar New Year (late Jan/Feb), Ching Ming (Apr 4-5), Labour Day (May 1-3), National Day / Golden Week (Oct 1-7), SAR Day (Dec 20)
+    // 3. Calendar fallback uses the same known 2026 core windows and three-day
+    // pre/post stages as the model. Other future holidays need a new calendar.
     let holidayStage: 'none' | 'pre' | 'in' | 'post' = 'none';
-    if ((month === 5 && day >= 1 && day <= 3) || (month === 10 && day >= 1 && day <= 5) || (month === 12 && day >= 20 && day <= 22)) {
-      holidayStage = 'in';
-    } else if ((month === 4 && day >= 28) || (month === 9 && day >= 28)) {
-      holidayStage = 'pre';
-    } else if ((month === 5 && day >= 4 && day <= 6) || (month === 10 && day >= 6 && day <= 8)) {
-      holidayStage = 'post';
-    } else if (isWeekend) {
-      holidayStage = 'none'; // Weekend standard flow
+    const todayMs = Date.UTC(year, month - 1, day);
+    for (const [first, last] of [['2026-02-16', '2026-02-23'], ['2026-05-01', '2026-05-05'], ['2026-10-01', '2026-10-07']]) {
+      const firstMs = Date.parse(`${first}T00:00:00Z`);
+      const lastMs = Date.parse(`${last}T00:00:00Z`);
+      if (todayMs >= firstMs && todayMs <= lastMs) holidayStage = 'in';
+      else if (todayMs >= firstMs - 3 * 86400000 && todayMs < firstMs) holidayStage = 'pre';
+      else if (todayMs > lastMs && todayMs <= lastMs + 3 * 86400000) holidayStage = 'post';
+      if (holidayStage !== 'none') break;
     }
 
     return res.json({
-      source: "macau_direct_government_open_data",
+      source: "open_meteo_calendar_fallback",
       rainfall_prev_1h_mm: liveRainfall,
       holiday_stage: holidayStage,
       is_weekend: isWeekend,
@@ -128,39 +128,27 @@ app.get("/api/realtime/environment", async (_req, res) => {
 app.post("/api/config/lstm", async (req, res) => {
   try {
     const { url } = req.body;
-    if (url !== undefined) {
-      currentLstmServiceUrl = String(url).trim().replace(/\/$/, "");
+    // The public deployment uses only the operator-configured Render URL.
+    // Letting anonymous visitors change this would redirect server requests.
+    if (url !== undefined && process.env.NODE_ENV !== "production") {
+      currentLstmServiceUrl = String(url).trim().replace(/\/+$/, "");
     }
     
     // Test connectivity if URL is set
     let connected = false;
     let details: any = null;
     if (currentLstmServiceUrl) {
-      const endpointsToTry = [
-        `${currentLstmServiceUrl}/docs`,
-        `${currentLstmServiceUrl}/openapi.json`,
-        `${currentLstmServiceUrl}/`,
-        `${currentLstmServiceUrl}/P2323343_LinYuxuan/docs`
-      ];
-
-      for (const endpoint of endpointsToTry) {
-        try {
-          const testRes = await fetch(endpoint, {
-            method: "GET",
-            headers: {
-              "User-Agent": "Macao-Crowd-Agent/1.0",
-              "bypass-tunnel-reminder": "true"
-            },
-            signal: AbortSignal.timeout(3500)
-          });
-          // Any response < 500 confirms the tunnel and server are alive and reachable
-          if (testRes.status < 500) {
-            connected = true;
-            break;
-          }
-        } catch (e: any) {
-          details = e.message;
-        }
+      try {
+        const testRes = await fetch(`${currentLstmServiceUrl}/health`, {
+          method: "GET",
+          headers: { "User-Agent": "Macao-Crowd-Agent/1.0" },
+          signal: AbortSignal.timeout(MODEL_COLD_START_TIMEOUT_MS)
+        });
+        const health = testRes.ok ? await testRes.json() : null;
+        connected = Boolean(health?.model_loaded === true && health?.status === "ok");
+        details = health?.mode || (testRes.ok ? "Model not loaded" : `HTTP ${testRes.status}`);
+      } catch (e: any) {
+        details = e.message;
       }
     }
 
@@ -265,64 +253,17 @@ app.post("/api/route/optimize", async (req, res) => {
     const startNode = waypoints[0];
     const destinations = waypoints.slice(1);
 
-    // 1. If LSTM service is configured, call external Python/FastAPI LSTM service
-    let lstmPredictions: Record<string, { 
-      predicted_people?: number; 
-      crowd_ratio?: number; 
-      status?: string; 
-      status_text?: string;
-      is_indoor?: number;
-      rainfall_mm?: number;
-    }> = {};
-
-    let lstmConnected = false;
-
-    const loadLstmPredictions = async (spots: any[]) => {
-      if (!currentLstmServiceUrl) return;
-      try {
-        const payload = {
-          spots: spots.map((d: any) => ({
-            id: d.id,
-            name: d.name,
-            visit_time: d.time || "12:00",
-            date_str: d.visitDate || date
-          })),
-          rainfall_prev_1h_mm: Number(rainfall_prev_1h_mm) || 0.0,
-          date: date
-        };
-
-        const requestHeaders = {
-          "Content-Type": "application/json",
-          "User-Agent": "Macao-Crowd-Agent/1.0",
-          "bypass-tunnel-reminder": "true"
-        };
-
-        // Try user's graduation project endpoint first, fallback to standard
-        let lstmRes = await fetch(`${currentLstmServiceUrl}/P2323343_LinYuxuan/predict`, {
-          method: "POST",
-          headers: requestHeaders,
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(4500)
-        }).catch(() => null);
-
-        if (!lstmRes || !lstmRes.ok) {
-          lstmRes = await fetch(`${currentLstmServiceUrl}/predict`, {
-            method: "POST",
-            headers: requestHeaders,
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(4500)
-          }).catch(() => null);
-        }
-
-        if (lstmRes && lstmRes.ok) {
-          const resJson = await lstmRes.json();
-          lstmPredictions = resJson.predictions || resJson;
-          lstmConnected = true;
-        }
-      } catch (lstmErr) {
-        console.warn("External LSTM Service call failed, using embedded baseline:", lstmErr);
-      }
+    // Each prediction belongs to one attraction at one forecast time, not just an attraction ID.
+    type CrowdPrediction = { predicted_people: number; crowd_ratio: number; region_id?: string; region_name?: string;
+      source?: string; crowd_status_key?: "comfortable" | "moderate" | "crowded";
+      p50_count?: number; p85_count?: number };
+    const lstmPredictions = new Map<string, CrowdPrediction>();
+    const forecastSlot = (time: string) => {
+      const [hours, minutes] = time.split(":").map(Number);
+      return `${String(hours).padStart(2, "0")}:${String(Math.floor(minutes / 15) * 15).padStart(2, "0")}`;
     };
+    const predictionKey = (id: unknown, visitDate: string, visitTime: string) =>
+      JSON.stringify([String(id), visitDate, forecastSlot(visitTime)]);
 
     // 2. Fetch real travel times matrix from Mapbox
     const allCoords = waypoints
@@ -408,17 +349,29 @@ app.post("/api/route/optimize", async (req, res) => {
       };
     };
 
-    const estimateCrowdAtArrival = (spot: any, arrivalTime: string) => {
+    const estimateCrowdAtArrival = (spot: any, arrivalTime: string, arrivalDate: string) => {
       const arrHour = parseHour(arrivalTime);
-      const spotPred = lstmPredictions[spot.id];
+      const spotPred = lstmPredictions.get(predictionKey(spot.id, arrivalDate, arrivalTime));
 
       // If external LSTM is available, prefer it as base signal
       if (spotPred) {
-        const predictedPeopleRaw = Number(spotPred.predicted_people ?? 680);
-        const predictedPeople = Number.isFinite(predictedPeopleRaw) && predictedPeopleRaw >= 0 ? Math.round(predictedPeopleRaw) : 680;
-        const crowdRatio = clamp(Number(spotPred.crowd_ratio ?? 35), 1, 99);
-        const classified = classifySpotCongestion(spot, crowdRatio);
-        return { predictedPeople, crowdRatio, ...classified };
+        const predictedPeople = Math.round(spotPred.predicted_people);
+        const crowdRatio = spotPred.crowd_ratio;
+        const hasCountThresholds = Boolean(spotPred.crowd_status_key &&
+          Number.isFinite(spotPred.p50_count) && Number.isFinite(spotPred.p85_count));
+        const classified = hasCountThresholds
+          ? (() => {
+              const visuals = getCongestionVisual(spotPred.crowd_status_key!);
+              return { crowdStatusKey: spotPred.crowd_status_key!, crowdBg: visuals.crowdBg,
+                color: visuals.textClass, thresholdP50: spotPred.p50_count!,
+                thresholdP85: spotPred.p85_count!, thresholdSource: "observed training visitor counts",
+                thresholdSourcePeriod: "2025–2026 engineered training windows",
+                thresholdFallbackUsed: false, thresholdFallbackType: "none", thresholdWarning: undefined };
+            })()
+          : classifySpotCongestion(spot, crowdRatio);
+        return { predictedPeople, crowdRatio, predictionSource: spotPred.source || "external_lstm",
+          predictionRegionId: spotPred.region_id || null, predictionRegionName: spotPred.region_name || null,
+          ...classified };
       }
 
       // Embedded fallback model: hour + holiday + rainfall + spot type
@@ -458,7 +411,8 @@ app.post("/api/route/optimize", async (req, res) => {
       );
       const predictedPeople = Math.round((crowdRatio / 100) * capacity);
       const classified = classifySpotCongestion(spot, crowdRatio);
-      return { predictedPeople, crowdRatio, ...classified };
+      return { predictedPeople, crowdRatio, predictionSource: "embedded_estimate",
+        predictionRegionId: null, predictionRegionName: null, ...classified };
     };
 
     const nodeIndexById = new Map<string, number>();
@@ -478,45 +432,13 @@ app.post("/api/route/optimize", async (req, res) => {
       return 15;
     };
 
-    if (previewOnly) {
-      // Query the model at each stop's actual arrival under the current order,
-      // including previous visits and crossing midnight into the next date.
-      const [hours, minutes] = startTime.split(':').map(Number);
-      let elapsed = hours * 60 + minutes;
-      const scheduledSpots = waypoints.map((spot: any, index: number) => {
-        if (index > 0) {
-          elapsed += getTravelMinutes(index - 1, index);
-        }
-        const visitDate = new Date(`${date}T00:00:00Z`);
-        visitDate.setUTCDate(visitDate.getUTCDate() + Math.floor(elapsed / 1440));
-        const scheduled = {
-          ...spot,
-          time: addMinutesToTime('00:00', elapsed),
-          visitDate: visitDate.toISOString().slice(0, 10)
-        };
-        if (index > 0) elapsed += Number(spot.durationMinutes || 60);
-        return scheduled;
-      });
-      await loadLstmPredictions(scheduledSpots);
-    } else {
-      await loadLstmPredictions(destinations);
-    }
+    const [departureHour, departureMinute] = startTime.split(":").map(Number);
+    const departureMinutes = departureHour * 60 + departureMinute;
+    const baseDateMs = Date.parse(`${date}T00:00:00Z`);
+    const dateAtMinutes = (absoluteMinutes: number) =>
+      new Date(baseDateMs + Math.floor(absoluteMinutes / 1440) * 86400000).toISOString().slice(0, 10);
 
-    // Route-scoring penalty is intentionally independent from user-facing classification thresholds.
-    const computeRoutingPenalty = (travelMinutes: number, crowdRatio: number, stayMinutes: number) => {
-      let penalty = 0;
-      penalty += travelMinutes * 1.2;
-      penalty += crowdRatio * 2.8;
-      penalty += stayMinutes * Math.max(0, crowdRatio - 40) * 0.012;
-      if (crowdRatio >= 80) {
-        penalty += 95;
-      } else if (crowdRatio >= 65) {
-        penalty += 35;
-      }
-      return penalty;
-    };
-
-    // Full permutation search for up to 8 destinations (UI max = 8)
+    // Full permutation search for up to 8 destinations (UI max = 8).
     const getPermutations = (arr: any[]): any[][] => {
       const result: any[][] = [];
       const used = new Array(arr.length).fill(false);
@@ -544,7 +466,141 @@ app.post("/api/route/optimize", async (req, res) => {
     const candidatePerms = (keepOrder || previewOnly)
       ? [destinations]
       : (destinations.length <= 8 ? getPermutations(destinations) : [destinations]);
-    
+
+    type ModelQuery = { request_id: string; id: string; poi_id: string; name: string; visit_time: string; date_str: string };
+    const scheduledQueries = new Map<string, ModelQuery>();
+    const addScheduledQuery = (spot: any, absoluteMinutes: number) => {
+      const visitTime = forecastSlot(addMinutesToTime("00:00", absoluteMinutes));
+      const visitDate = dateAtMinutes(absoluteMinutes);
+      const key = predictionKey(spot.id, visitDate, visitTime);
+      if (!scheduledQueries.has(key)) {
+        scheduledQueries.set(key, {
+          request_id: `q${scheduledQueries.size}`,
+          id: String(spot.id),
+          poi_id: String(spot.poiId || ""),
+          name: String(spot.name || spot.nameKey || spot.id),
+          visit_time: visitTime,
+          date_str: visitDate
+        });
+      }
+    };
+
+    if (currentLstmServiceUrl) {
+      // An ETA selects its 15-minute forecast slot. Reuse the same model query
+      // across candidate orders only when attraction, date and slot all match.
+      addScheduledQuery(startNode, departureMinutes);
+      for (const sequence of candidatePerms) {
+        let elapsed = departureMinutes;
+        let previousIndex = 0;
+        for (const spot of sequence) {
+          const spotIndex = getNodeIndex(spot.id);
+          elapsed += getTravelMinutes(previousIndex, spotIndex);
+          addScheduledQuery(spot, elapsed);
+          elapsed += Math.round(Number(spot.durationMinutes || 60));
+          previousIndex = spotIndex;
+        }
+      }
+
+      const allQueries = [...scheduledQueries.values()];
+      const queryCountById = new Map<string, number>();
+      for (const query of allQueries) {
+        queryCountById.set(query.id, (queryCountById.get(query.id) || 0) + 1);
+      }
+      const batches: ModelQuery[][] = [];
+      for (let index = 0; index < allQueries.length; index += 128) {
+        batches.push(allQueries.slice(index, index + 128));
+      }
+
+      const requestBatch = async (batch: ModelQuery[]) => {
+        const payload = {
+          spots: batch,
+          rainfall_prev_1h_mm: Number(rainfall_prev_1h_mm) || 0.0,
+          date
+        };
+        for (const endpoint of ["/predict"]) {
+          try {
+            const response = await fetch(`${currentLstmServiceUrl}${endpoint}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "User-Agent": "Macao-Crowd-Agent/1.0",
+                "bypass-tunnel-reminder": "true"
+              },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(MODEL_COLD_START_TIMEOUT_MS)
+            });
+            if (!response.ok) continue;
+
+            const data = await response.json();
+            const predictions = data?.predictions ?? data;
+            if (!predictions || typeof predictions !== "object") continue;
+            let matched = 0;
+            for (const query of batch) {
+              const value: any = Array.isArray(predictions)
+                ? predictions.find((item: any) => item?.request_id === query.request_id || (
+                    item?.request_id === undefined && item?.id === query.id &&
+                    item?.date_str === query.date_str && item?.visit_time === query.visit_time
+                  ))
+                : predictions[query.request_id] ?? (
+                    queryCountById.get(query.id) === 1 ? predictions[query.id] : undefined
+                  );
+              if (!value || typeof value !== "object" ||
+                  (value.request_id !== undefined && value.request_id !== query.request_id) ||
+                  (value.id !== undefined && String(value.id) !== query.id) ||
+                  (value.poi_id !== undefined && String(value.poi_id) !== query.poi_id) ||
+                  (String(value.source || "").startsWith("lstm_") && value.poi_id === undefined) ||
+                  (value.date_str !== undefined && value.date_str !== query.date_str) ||
+                  (value.visit_time !== undefined && value.visit_time !== query.visit_time) ||
+                  typeof value.predicted_people !== "number" || !Number.isFinite(value.predicted_people) || value.predicted_people < 0 ||
+                  typeof value.crowd_ratio !== "number" || !Number.isFinite(value.crowd_ratio) ||
+                  value.crowd_ratio < 0 || value.crowd_ratio > 100) {
+                continue;
+              }
+              lstmPredictions.set(predictionKey(query.id, query.date_str, query.visit_time), {
+                predicted_people: value.predicted_people,
+                crowd_ratio: value.crowd_ratio,
+                region_id: typeof value.region_id === "string" ? value.region_id : undefined,
+                region_name: typeof value.region_name === "string" ? value.region_name : undefined,
+                source: typeof value.source === "string" ? value.source : undefined,
+                crowd_status_key: ["comfortable", "moderate", "crowded"].includes(value.crowd_status_key)
+                  ? value.crowd_status_key : undefined,
+                p50_count: typeof value.p50_count === "number" ? value.p50_count : undefined,
+                p85_count: typeof value.p85_count === "number" ? value.p85_count : undefined
+              });
+              matched++;
+            }
+            if (matched > 0) return;
+          } catch (error) {
+            console.warn("External LSTM prediction request failed:", error);
+          }
+        }
+      };
+
+      // Serial batches reuse the model service's cached official observations.
+      // Parallel cold batches would fetch the same four days many times on a
+      // free instance and needlessly increase memory and API pressure.
+      for (const batch of batches) {
+        await requestBatch(batch);
+      }
+      if (lstmPredictions.size === 0) {
+        console.warn("LSTM service returned no matching attraction/time predictions; using embedded estimates.");
+      }
+    }
+
+    // Route-scoring penalty is intentionally independent from user-facing classification thresholds.
+    const computeRoutingPenalty = (travelMinutes: number, crowdRatio: number, stayMinutes: number) => {
+      let penalty = 0;
+      penalty += travelMinutes * 1.2;
+      penalty += crowdRatio * 2.8;
+      penalty += stayMinutes * Math.max(0, crowdRatio - 40) * 0.012;
+      if (crowdRatio >= 80) {
+        penalty += 95;
+      } else if (crowdRatio >= 65) {
+        penalty += 35;
+      }
+      return penalty;
+    };
+
     // Score each candidate sequence with comfort-first objective:
     // travel cost + arrival crowd penalty + stay-in-crowd penalty
     let bestSequence = destinations;
@@ -552,19 +608,20 @@ app.post("/api/route/optimize", async (req, res) => {
 
     for (const seq of candidatePerms) {
       let score = 0;
-      let curT = startTime;
+      let elapsed = departureMinutes;
       let pIdx = 0; // start node index
 
       for (const spot of seq) {
         const oIdx = getNodeIndex(spot.id);
         const tMin = getTravelMinutes(pIdx, oIdx);
-        const arrTime = addMinutesToTime(curT, tMin);
-        const crowd = estimateCrowdAtArrival(spot, arrTime);
+        const arrivalMinutes = elapsed + tMin;
+        const arrTime = addMinutesToTime("00:00", arrivalMinutes);
+        const crowd = estimateCrowdAtArrival(spot, arrTime, dateAtMinutes(arrivalMinutes));
         const stayMin = Number(spot.durationMinutes || 60);
 
         score += computeRoutingPenalty(tMin, crowd.crowdRatio, stayMin);
 
-        curT = addMinutesToTime(arrTime, stayMin);
+        elapsed = arrivalMinutes + Math.round(stayMin);
         pIdx = oIdx;
       }
 
@@ -584,16 +641,20 @@ app.post("/api/route/optimize", async (req, res) => {
 
     const optimizedWaypoints: any[] = [];
     let currentTime = startTime;
+    let currentMinutes = departureMinutes;
     const unknownVisual = getCongestionVisual("unknown");
     const startHasSpotIdentity = Boolean(startNode?.poiId || startNode?.nameKey || startNode?.name || startNode?.id);
     const startCrowd = startHasSpotIdentity
-      ? estimateCrowdAtArrival(startNode, startTime)
+      ? estimateCrowdAtArrival(startNode, startTime, dateAtMinutes(departureMinutes))
       : {
           crowdStatusKey: 'unknown',
           crowdBg: unknownVisual.crowdBg,
           color: unknownVisual.textClass,
           predictedPeople: null,
           crowdRatio: null,
+          predictionSource: "unavailable",
+          predictionRegionId: null,
+          predictionRegionName: null,
           thresholdP50: null,
           thresholdP85: null,
           thresholdSource: USER_FACING_THRESHOLD_SOURCE,
@@ -614,6 +675,9 @@ app.post("/api/route/optimize", async (req, res) => {
       color: startCrowd.color,
       predictedPeople: startCrowd.predictedPeople,
       crowdRatio: startCrowd.crowdRatio,
+      predictionSource: startCrowd.predictionSource || "embedded_estimate",
+      predictionRegionId: startCrowd.predictionRegionId || null,
+      predictionRegionName: startCrowd.predictionRegionName || null,
       thresholdP50: startCrowd.thresholdP50,
       thresholdP85: startCrowd.thresholdP85,
       thresholdSource: startCrowd.thresholdSource,
@@ -633,14 +697,15 @@ app.post("/api/route/optimize", async (req, res) => {
       let travelMinutes = getTravelMinutes(prevIndex, origIndex);
 
       // Arrival time = previous departure + travel time
-      const arrivalTime = addMinutesToTime(currentTime, travelMinutes);
+      const arrivalMinutes = currentMinutes + travelMinutes;
+      const arrivalTime = addMinutesToTime("00:00", arrivalMinutes);
       const visitDuration = dest.durationMinutes || 60;
       const departureTime = addMinutesToTime(arrivalTime, visitDuration);
       
       const origDestIndex = destinations.findIndex((d: any) => d.id === dest.id) + 1;
       const currentStopIndex = i + 1;
 
-      const crowd = estimateCrowdAtArrival(dest, arrivalTime);
+      const crowd = estimateCrowdAtArrival(dest, arrivalTime, dateAtMinutes(arrivalMinutes));
 
       optimizedWaypoints.push({
         ...dest,
@@ -658,6 +723,9 @@ app.post("/api/route/optimize", async (req, res) => {
         bg: crowd.crowdBg,
         predictedPeople: crowd.predictedPeople,
         crowdRatio: crowd.crowdRatio,
+        predictionSource: crowd.predictionSource,
+        predictionRegionId: crowd.predictionRegionId,
+        predictionRegionName: crowd.predictionRegionName,
         thresholdP50: crowd.thresholdP50,
         thresholdP85: crowd.thresholdP85,
         thresholdSource: crowd.thresholdSource,
@@ -669,6 +737,7 @@ app.post("/api/route/optimize", async (req, res) => {
       });
 
       currentTime = departureTime;
+      currentMinutes = arrivalMinutes + Math.round(Number(visitDuration));
       prevIndex = origIndex;
     }
 
@@ -710,7 +779,8 @@ app.post("/api/route/optimize", async (req, res) => {
         totalStops: optimizedWaypoints.length,
         estimatedEndTime: currentTime,
         isReordered: isAnyReordered,
-        lstmAssisted: lstmConnected,
+        lstmAssisted: optimizedWaypoints.slice(1).some((stop: any) =>
+          stop.predictionSource !== "embedded_estimate" && stop.predictionSource !== "unavailable"),
         lstmServiceUrl: currentLstmServiceUrl,
         rainfallMm: rainfall_prev_1h_mm,
         threshold_source: USER_FACING_THRESHOLD_SOURCE,

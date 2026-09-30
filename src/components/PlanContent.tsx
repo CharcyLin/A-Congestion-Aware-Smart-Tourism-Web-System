@@ -121,7 +121,7 @@ export const PlanContent: React.FC<PlanContentProps> = ({
               </h2>
               {isLstmAssisted && (
                 <span className="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                  LSTM Verified
+                  {lang === 'en' ? 'LSTM used' : lang === 'pt' ? 'LSTM usado' : '已使用 LSTM'}
                 </span>
               )}
             </div>
@@ -130,7 +130,7 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                 ? (lang === 'en' ? 'Custom visiting order saved and will be used for navigation.' : lang === 'pt' ? 'A ordem personalizada foi guardada e será usada na navegação.' : '已保存自定义游览顺序，导航将按此顺序进行。')
                 : routeOptimizationSummary?.isReordered 
                 ? (t('reordered_saved') || '已为您智能重排路线，避开人流高峰')
-                : (lang === 'en' ? 'Route optimized, saved ~30 mins of congestion time' : lang === 'pt' ? 'Rota otimizada, economizou ~30 mins' : '已为您优化行程，智能避峰缩短耗时约 30 分钟')}
+                : (lang === 'en' ? 'Current visiting order retained after the crowd check.' : lang === 'pt' ? 'Ordem atual mantida após verificar a afluência.' : '已检查客流，保留当前游览顺序。')}
             </p>
           </div>
         ) : (
@@ -329,9 +329,9 @@ export const PlanContent: React.FC<PlanContentProps> = ({
 
                   <div className="flex items-center justify-between pt-1 text-[10px] text-gray-500">
                     <span className="truncate pr-1">
-                      {realtimeEnv.connected_to_python 
-                        ? '✓ Synced with Python Government Data Scheduler' 
-                        : '✓ Auto-detected via Macau Government Calendar'}
+                      {realtimeEnv.connected_to_python
+                        ? (lang === 'en' ? '✓ Open-Meteo weather · model calendar' : lang === 'pt' ? '✓ Meteorologia Open-Meteo · calendário do modelo' : '✓ Open-Meteo 天气 · 模型节假日历')
+                        : (lang === 'en' ? '✓ Open-Meteo weather · calendar estimate' : lang === 'pt' ? '✓ Meteorologia Open-Meteo · calendário estimado' : '✓ Open-Meteo 天气 · 节假日历估算')}
                     </span>
                     <button
                       onClick={fetchRealtimeEnv}
@@ -436,6 +436,16 @@ export const PlanContent: React.FC<PlanContentProps> = ({
             const destinationsCount = currentWaypoints.filter(w => w.type === 'dest').length;
             const waypointTag = isStart ? t('start_point') : `${t('destination_point')} ${destIndex}`;
             const hasPrediction = wp.predictionState === 'ready' && Number.isFinite(wp.predictedPeople);
+            const isLstmPrediction = String(wp.predictionSource || '').startsWith('lstm_');
+            const isChinese = lang === 'zh-CN' || lang === 'zh-TW';
+            const lstmMode = wp.predictionSource === 'lstm_historical_one_step'
+              ? (isChinese ? '历史回放' : lang === 'pt' ? 'histórico' : 'historical')
+              : wp.predictionSource === 'lstm_live_recursive'
+                ? (isChinese ? '递推预测' : lang === 'pt' ? 'recursivo' : 'recursive')
+                : (isChinese ? '实时预测' : lang === 'pt' ? 'ao vivo' : 'live');
+            const predictionSourceLabel = isLstmPrediction
+              ? `LSTM ${lstmMode}${wp.predictionRegionId ? ` · ${isChinese ? '片区' : lang === 'pt' ? 'zona' : 'area'} ${wp.predictionRegionId}` : ''}`
+              : (lang === 'zh-CN' || lang === 'zh-TW' ? '估算' : lang === 'pt' ? 'Estimativa' : 'Estimate');
             const crowdPreview = !isOptimized && (
               <div
                 className="ml-auto flex flex-col items-end gap-0.5 text-right text-[10px] leading-snug"
@@ -451,13 +461,17 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                     <Loader2 size={11} className="animate-spin" />{t('prediction_loading')}
                   </span>
                 ) : hasPrediction ? (
-                  <span
-                    className={`inline-flex flex-wrap justify-end items-center gap-x-1.5 rounded-md px-1.5 py-0.5 font-bold ${wp.color}`}
-                    style={{ backgroundColor: wp.statusBg }}
-                  >
-                    <span>~{Math.round(wp.predictedPeople).toLocaleString()} {t('visitors_unit')}</span>
-                    <span>{wp.crowdStatus}</span>
-                  </span>
+                  <>
+                    <span
+                      className={`inline-flex flex-wrap justify-end items-center gap-x-1.5 rounded-md px-1.5 py-0.5 font-bold ${wp.color}`}
+                      style={{ backgroundColor: wp.statusBg }}
+                      title={isLstmPrediction ? wp.predictionRegionName : undefined}
+                    >
+                      <span>~{Math.round(wp.predictedPeople).toLocaleString()} {t('visitors_unit')}</span>
+                      <span>{wp.crowdStatus}</span>
+                    </span>
+                    <span className="text-[9px] text-gray-400">{predictionSourceLabel}</span>
+                  </>
                 ) : (
                   <span className="text-gray-400">{t('data_unavailable')}</span>
                 )}
@@ -510,8 +524,8 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                             {isOptimized && (
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {wp.predictedPeople !== undefined && wp.predictedPeople !== null && (
-                                  <span className="text-[10px] text-gray-600 font-semibold bg-gray-100 px-1.5 py-0.5 rounded">
-                                    ~{wp.predictedPeople.toLocaleString()} {t('visitors_unit')}
+                                  <span className="text-[10px] text-gray-600 font-semibold bg-gray-100 px-1.5 py-0.5 rounded" title={isLstmPrediction ? wp.predictionRegionName : predictionSourceLabel}>
+                                    ~{wp.predictedPeople.toLocaleString()} {t('visitors_unit')} · {predictionSourceLabel}
                                   </span>
                                 )}
                                 {wp.crowdStatus && (

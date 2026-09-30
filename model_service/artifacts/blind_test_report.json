@@ -1,0 +1,19 @@
+{
+  "selection": "Selected by per-region chronological validation and April 2026 holdout; May labels were not used for selection.",
+  "weight_sha256": "ae04231403f50b8edbf76f6493f06a5c043850c72bfebf2f11da1f98d0da5411",
+  "all_may": {
+    "n": 244032,
+    "mae": 284.0436393597671,
+    "rmse": 981.5274346933147,
+    "wape_percent": 15.251222252654037,
+    "r2": 0.9774265928250238
+  },
+  "golden_week_only": {
+    "n": 39360,
+    "mae": 419.19081436742016,
+    "rmse": 1590.8326102675294,
+    "wape_percent": 17.807583891810133,
+    "r2": 0.9669353517157642
+  },
+  "original_report_note": "The original ablation reported all-May MAE 255.97 and Golden Week MAE 373.98, but its exact weights were not saved; this exported retraining is a different model."
+}

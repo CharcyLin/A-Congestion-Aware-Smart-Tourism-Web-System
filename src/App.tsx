@@ -269,10 +269,24 @@ const translations = {
     add_dest: "Add destination",
     start_smart_planning: "Start Smart Planning",
     ai_optimized: "AI Optimized Route",
-    peak_avoided: "Peak crowds avoided! Reordered to save ~45 mins.",
+    peak_avoided: "Visiting order adjusted for predicted crowds.",
     edit: "Edit Route",
     start_nav: "Start Navigation",
     language: "Language",
+    settings_sub: "Route planning preferences",
+    lstm_engine_title: "LSTM prediction service",
+    service_running: "Connected",
+    simulation_engine: "Estimate mode",
+    model_arch: "Model",
+    service_node: "Service address",
+    exogenous_vars: "Inputs",
+    exogenous_vars_val: "Holiday stage and previous-hour rain",
+    test_ai_service: "Check model connection",
+    smg_sensor_data: "Live environment",
+    past_1h_rain: "Previous-hour rain",
+    holiday_stage_text: "Holiday stage",
+    reset_default_itinerary: "Reset itinerary",
+    system_version: "Macao tourism route planner",
     text_size: "Text Size",
     standard: "Standard",
     large: "Large",
@@ -301,7 +315,7 @@ const translations = {
     orig_dest_tag: "Original Dest",
     travel_time_prefix: "Travel approx",
     optimal_kept: "Current sequence is already optimal!",
-    reordered_saved: "AI reordered the sequence to bypass congestion, saving ~45 mins!",
+    reordered_saved: "Visiting order adjusted using predicted crowds and travel times.",
     visitors_unit: "visitors",
     env_mode_title: "Environment & Weather Mode",
     expand: "Expand",
@@ -485,10 +499,24 @@ const translations = {
     add_dest: "添加目的地",
     start_smart_planning: "开始智能规划",
     ai_optimized: "AI 优化路线",
-    peak_avoided: "已避开客流高峰！重新排序为您节省约 45 分钟。",
+    peak_avoided: "已根据预测客流调整游览顺序。",
     edit: "编辑路线",
     start_nav: "开始导航",
     language: "语言",
+    settings_sub: "路线规划设置",
+    lstm_engine_title: "LSTM 预测服务",
+    service_running: "已连接",
+    simulation_engine: "估算模式",
+    model_arch: "模型",
+    service_node: "服务地址",
+    exogenous_vars: "输入特征",
+    exogenous_vars_val: "节假日阶段与前一小时降雨",
+    test_ai_service: "检查模型连接",
+    smg_sensor_data: "实时环境",
+    past_1h_rain: "前一小时降雨",
+    holiday_stage_text: "节假日阶段",
+    reset_default_itinerary: "重置行程",
+    system_version: "澳门旅游路线规划系统",
     text_size: "字体大小",
     standard: "标准",
     large: "大",
@@ -517,7 +545,7 @@ const translations = {
     orig_dest_tag: "原目的地",
     travel_time_prefix: "路程约",
     optimal_kept: "当前路线已为最佳顺路方案（平峰客流舒适，无需调换顺序）！",
-    reordered_saved: "已通过 AI 避峰调整游览顺序！避开高峰拥堵，为您节省约 45 分钟。",
+    reordered_saved: "已结合预测客流和交通时间调整游览顺序。",
     visitors_unit: "人",
     env_mode_title: "环境与气象模式",
     expand: "展开",
@@ -558,11 +586,11 @@ const translations = {
     weather_label: "天气与降雨",
     holiday_stage_label: "节假日阶段",
     holiday_stage_none: "非节假日 (常规工作日)",
-    holiday_stage_pre: "节前蓄热期 (假期前1~2天)",
+    holiday_stage_pre: "节前蓄热期 (假期前1~3天)",
     holiday_stage_in: "节中客流高峰 (黄金周/大节)",
-    holiday_stage_post: "节后回落期 (假期后1~2天)",
+    holiday_stage_post: "节后回落期 (假期后1~3天)",
     mode_select_label: "模式切换",
-    mode_auto_govt: "实时气象 (气象局自动同步)",
+    mode_auto_govt: "实时天气 (Open-Meteo)",
     mode_manual_scenario: "自定义情景模式",
     simulated_tag: "自定义",
     tab_map: "地图探索",
@@ -701,10 +729,24 @@ const translations = {
     add_dest: "添加目的地",
     start_smart_planning: "開始智能規劃",
     ai_optimized: "AI 優化路線",
-    peak_avoided: "已避開客流高峰！重新排序為您節省約 45 分鐘。",
+    peak_avoided: "已根據預測客流調整遊覽順序。",
     edit: "編輯路線",
     start_nav: "開始導航",
     language: "語言",
+    settings_sub: "路線規劃設定",
+    lstm_engine_title: "LSTM 預測服務",
+    service_running: "已連接",
+    simulation_engine: "估算模式",
+    model_arch: "模型",
+    service_node: "服務地址",
+    exogenous_vars: "輸入特徵",
+    exogenous_vars_val: "節假日階段與前一小時降雨",
+    test_ai_service: "檢查模型連接",
+    smg_sensor_data: "實時環境",
+    past_1h_rain: "前一小時降雨",
+    holiday_stage_text: "節假日階段",
+    reset_default_itinerary: "重設行程",
+    system_version: "澳門旅遊路線規劃系統",
     text_size: "字體大小",
     standard: "標準",
     large: "大",
@@ -733,7 +775,7 @@ const translations = {
     orig_dest_tag: "原目的地",
     travel_time_prefix: "路程約",
     optimal_kept: "當前路線已為最佳順路方案（平峰客流舒適，無需調換順序）！",
-    reordered_saved: "已通過 AI 避峰調整遊覽順序！避開高峰擁堵，為您節省約 45 分鐘。",
+    reordered_saved: "已結合預測客流和交通時間調整遊覽順序。",
     visitors_unit: "人",
     env_mode_title: "環境與氣象模式",
     expand: "展開",
@@ -774,11 +816,11 @@ const translations = {
     weather_label: "天氣與降雨",
     holiday_stage_label: "節假日階段",
     holiday_stage_none: "非節假日 (常規工作日)",
-    holiday_stage_pre: "節前蓄熱期 (假期前1~2天)",
+    holiday_stage_pre: "節前蓄熱期 (假期前1~3天)",
     holiday_stage_in: "節中客流高峰 (黃金周/大節)",
-    holiday_stage_post: "節後回落期 (假期後1~2天)",
+    holiday_stage_post: "節後回落期 (假期後1~3天)",
     mode_select_label: "模式切換",
-    mode_auto_govt: "實時氣象 (氣象局自動同步)",
+    mode_auto_govt: "實時天氣 (Open-Meteo)",
     mode_manual_scenario: "自定義情景模式",
     simulated_tag: "自定義",
     tab_map: "地圖探索",
@@ -917,10 +959,24 @@ const translations = {
     add_dest: "Adicionar destino",
     start_smart_planning: "Iniciar Planeamento Inteligente",
     ai_optimized: "Rota Otimizada por IA",
-    peak_avoided: "Picos evitados! Reordenado para poupar ~45 min.",
+    peak_avoided: "Ordem ajustada conforme o fluxo previsto.",
     edit: "Editar Rota",
     start_nav: "Iniciar Navegação",
     language: "Idioma",
+    settings_sub: "Preferências de planeamento da rota",
+    lstm_engine_title: "Serviço de previsão LSTM",
+    service_running: "Ligado",
+    simulation_engine: "Modo de estimativa",
+    model_arch: "Modelo",
+    service_node: "Endereço do serviço",
+    exogenous_vars: "Variáveis de entrada",
+    exogenous_vars_val: "Fase do feriado e chuva na hora anterior",
+    test_ai_service: "Verificar ligação do modelo",
+    smg_sensor_data: "Ambiente em tempo real",
+    past_1h_rain: "Chuva na hora anterior",
+    holiday_stage_text: "Fase do feriado",
+    reset_default_itinerary: "Repor itinerário",
+    system_version: "Planeador de rotas turísticas de Macau",
     text_size: "Tamanho do Texto",
     standard: "Padrão",
     large: "Grande",
@@ -1190,7 +1246,7 @@ export default function App() {
     rainfall_prev_1h_mm: 0.0,
     holiday_stage: 'none',
     is_weekend: false,
-    date: new Date().toISOString().split('T')[0],
+    date: formatCurrentDate24h().slice(0, 10).replaceAll('/', '-'),
     description: 'Auto-syncing real-time government environment data...',
     connected_to_python: false
   });
@@ -1213,7 +1269,7 @@ export default function App() {
 
   // LSTM Modal & Service Status States
   const [showModelModal, setShowModelModal] = useState(false);
-  const [lstmServiceUrlInput, setLstmServiceUrlInput] = useState("http://127.0.0.1:8000");
+  const [lstmServiceUrlInput, setLstmServiceUrlInput] = useState(import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
   const [lstmStatus, setLstmStatus] = useState<{ connected: boolean; url: string; checked: boolean }>({
     connected: false,
     url: "",
@@ -1224,23 +1280,15 @@ export default function App() {
   const checkLstmHealth = async (overrideUrl?: string) => {
     setIsTestingLstm(true);
     try {
-      if (overrideUrl !== undefined) {
-        const updateRes = await fetch('/api/config/lstm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: overrideUrl })
-        });
-        const data = await updateRes.json();
-        setLstmStatus({ connected: Boolean(data.connected), url: data.lstmServiceUrl || overrideUrl, checked: true });
-      } else {
-        const healthRes = await fetch('/api/health');
-        if (healthRes.ok) {
-          const hData = await healthRes.json();
-          setLstmStatus({ connected: Boolean(hData.hasLstmService), url: hData.lstmServiceUrl || "", checked: true });
-          if (hData.lstmServiceUrl) {
-            setLstmServiceUrlInput(hData.lstmServiceUrl);
-          }
-        }
+      const updateRes = await fetch('/api/config/lstm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(overrideUrl !== undefined && import.meta.env.DEV ? { url: overrideUrl } : {})
+      });
+      const data = await updateRes.json();
+      setLstmStatus({ connected: Boolean(data.connected), url: data.lstmServiceUrl || "", checked: true });
+      if (data.lstmServiceUrl) {
+        setLstmServiceUrlInput(data.lstmServiceUrl);
       }
       await fetchRealtimeEnv();
     } catch (err) {
@@ -1945,6 +1993,9 @@ export default function App() {
       crowdStatusKey: prediction?.crowdStatusKey || 'unknown',
       crowdRatio: prediction?.crowdRatio,
       predictedPeople: prediction?.predictedPeople,
+      predictionSource: prediction?.predictionSource,
+      predictionRegionId: prediction?.predictionRegionId,
+      predictionRegionName: prediction?.predictionRegionName,
       stopIndex: idx,
       origDestIndex: idx,
       isReordered: false,
@@ -2039,7 +2090,7 @@ export default function App() {
           startTime: startTime || getLiveBeijingTime().timeStr,
           transportMode: mode,
           rainfall_prev_1h_mm: rainfallMm,
-          date: dateMap[holidayStage],
+          date: envMode === 'auto' ? realtimeEnv.date : dateMap[holidayStage],
           holidayStage,
           keepOrder: Boolean(options?.keepOrder)
         })
@@ -2057,7 +2108,7 @@ export default function App() {
           setDynamicOptimizedWaypoints(data.optimizedWaypoints);
         }
         setRouteOptimizationSummary(data.summary || null);
-        setIsLstmAssisted(Boolean(data.isLstmAssisted));
+        setIsLstmAssisted(Boolean(data.summary?.lstmAssisted));
         setIsOptimized(true);
         setHasPendingManualSort(false);
         setIsCustomOrderSaved(Boolean(options?.keepOrder));
@@ -3388,7 +3439,7 @@ export default function App() {
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
                 <div className="font-semibold text-gray-700">🔬 Model Feature Engineering (29 Dimensions):</div>
                 <div className="text-gray-500 leading-relaxed font-mono text-[11px]">
-                  • Sequence History: LOOKBACK = 96 (24h, 15-min intervals, flow_lag_1~96)<br/>
+                  • Sequence History: LOOKBACK = 96 (24h, 15-min intervals; lags 1, 2, 4, 8 and 96)<br/>
                   • Holiday Stages: holiday_stage_pre, holiday_stage_in, holiday_stage_post<br/>
                   • Meteorological Feature: rainfall_prev_1h_mm (Previous 1-hour rainfall in mm)<br/>
                   • Spatial Attribute: is_indoor (1: Indoor / 0: Outdoor)
@@ -3400,23 +3451,24 @@ export default function App() {
                   <span>🏛️ Macau Government Open Data Integration:</span>
                 </div>
                 <div className="text-blue-900/80 leading-relaxed text-[11px]">
-                  • <strong>Weather Data</strong>: Macao SMG (hourly precipitation telemetry).<br/>
-                  • <strong>Crowd Level</strong>: Macao MGTO real-time tourist flow index.<br/>
-                  • <strong>Calendar Engine</strong>: Macau statutory public holiday stage encoder.<br/>
-                  • <strong>Dual Mode</strong>: <em>Auto Mode</em> synchronizes live government feeds; <em>Manual Scenario</em> enables future trip simulation and model ablation testing.
+                  • <strong>Weather Data</strong>: Open-Meteo hourly precipitation.<br/>
+                  • <strong>Crowd Level</strong>: Macao Government scenic-region observations when available.<br/>
+                  • <strong>Holiday Stages</strong>: the 2026 holiday windows used by the trained model.<br/>
+                  • <strong>Dual Mode</strong>: <em>Auto Mode</em> uses recent observations when available; <em>Manual Scenario</em> shows historical or estimated scenarios.
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <label className="font-semibold text-gray-700 block">
-                  Python FastAPI Service URL (Localhost or Public Tunnel / ngrok):
+                  {import.meta.env.PROD ? 'Server-managed LSTM Service URL:' : 'LSTM Inference Service URL:'}
                 </label>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
                     value={lstmServiceUrlInput}
                     onChange={(e) => setLstmServiceUrlInput(e.target.value)}
-                    placeholder="e.g. http://127.0.0.1:8000 or ngrok public URL"
+                    readOnly={import.meta.env.PROD}
+                    placeholder={import.meta.env.PROD ? 'Set LSTM_SERVICE_URL on Render' : 'e.g. http://127.0.0.1:8000'}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 font-mono text-xs focus:outline-none focus:border-indigo-500"
                   />
                   <button 
@@ -3435,8 +3487,8 @@ export default function App() {
                   <div className="font-semibold text-gray-800">Connection Status:</div>
                   <div className="text-gray-500 mt-0.5">
                     {lstmStatus.connected 
-                      ? "Successfully connected to external Python LSTM inference service" 
-                      : "Operating in high-precision standalone Macau simulation mode"}
+                      ? "LSTM model loaded. Each stop uses it only when the region and history are available."
+                      : "Using the website's embedded crowd estimate."}
                   </div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${

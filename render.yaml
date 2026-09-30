@@ -1,0 +1,19 @@
+# Creates only the inference service. The existing website service remains
+# managed through its current Render dashboard settings.
+services:
+  - type: web
+    name: macao-lstm-inference
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: model_service
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /health
+    envVars:
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: PYTHONUNBUFFERED
+        value: "1"

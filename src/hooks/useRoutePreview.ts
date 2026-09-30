@@ -19,7 +19,9 @@ export function useRoutePreview(request: Record<string, unknown> | null) {
     let deadline: ReturnType<typeof setTimeout>;
     const timer = setTimeout(async () => {
       setResult({ key, status: 'loading', waypoints: [] });
-      deadline = setTimeout(() => controller.abort(), 20000);
+      // A sleeping free-tier model service can take about a minute to wake.
+      // Leave room for its 90-second server deadline plus route calculation.
+      deadline = setTimeout(() => controller.abort(), 110000);
       try {
         const response = await fetch('/api/route/optimize', {
           method: 'POST',

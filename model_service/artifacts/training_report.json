@@ -1,0 +1,33 @@
+{
+  "weights_bytes": 140038,
+  "feature_count": 29,
+  "spot_count": 82,
+  "parity_max_abs_error": 1.4901161193847656e-08,
+  "best_epoch": 22,
+  "validation": {
+    "candidate": {
+      "n": 75788,
+      "scaled_mae": 0.037678042796442435,
+      "scaled_mse": 0.0032713108340856026
+    },
+    "baseline": {
+      "n": 75788,
+      "scaled_mae": 0.04698289961649911,
+      "scaled_mse": 0.004670608775899496
+    }
+  },
+  "april_holdout": {
+    "candidate": {
+      "n": 141696,
+      "mae": 242.545003700709,
+      "rmse": 770.7978106689399,
+      "wape_percent": 12.964549007346788
+    },
+    "baseline": {
+      "n": 141696,
+      "mae": 267.6478044895849,
+      "rmse": 844.019664823414,
+      "wape_percent": 14.306347379127036
+    }
+  }
+}

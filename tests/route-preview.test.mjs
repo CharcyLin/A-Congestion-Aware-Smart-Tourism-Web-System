@@ -10,7 +10,7 @@ const source = buildSync({
   packages: 'external', write: false
 }).outputFiles[0].text;
 
-function createApi({ model = false } = {}) {
+function createApi({ model = false, modelResponder } = {}) {
   const handlers = new Map();
   const calls = [];
   const app = {
@@ -31,7 +31,10 @@ function createApi({ model = false } = {}) {
       }
       if (url.includes('/predict')) {
         const { spots } = JSON.parse(options.body);
-        return { ok: true, json: async () => ({ predictions: Object.fromEntries(spots.map(spot => [spot.id, {
+        return { ok: true, json: async () => modelResponder?.(spots) ?? ({ predictions: Object.fromEntries(spots.map(spot => [spot.request_id, {
+          id: spot.id,
+          date_str: spot.date_str,
+          visit_time: spot.visit_time,
           predicted_people: spot.id === 'start' ? 0 : Number(spot.visit_time.slice(0, 2)) * 100,
           crowd_ratio: 30
         }])) }) };
@@ -92,16 +95,92 @@ test('reordering recomputes each destination at its new arrival time', async () 
   assert.notEqual(body.optimizedWaypoints[2].predictedPeople, first.predictedPeople);
 });
 
-test('external model receives actual arrival times and next-day dates, including the starting point', async () => {
+test('external model receives the 15-minute slots for actual arrivals and next-day dates', async () => {
   const api = createApi({ model: true });
   const { body } = await api.preview({ startTime: '23:50' });
   const request = api.calls.find(call => call.url.includes('/predict')).body;
   assert.deepEqual(request.spots.map(s => [s.id, s.visit_time, s.date_str]), [
-    ['start', '23:50', '2026-09-27'], ['a', '00:00', '2026-09-28'], ['b', '01:15', '2026-09-28']
+    ['start', '23:45', '2026-09-27'], ['a', '00:00', '2026-09-28'], ['b', '01:15', '2026-09-28']
   ]);
   assert.equal(body.optimizedWaypoints[0].predictedPeople, 0);
   assert.equal(body.optimizedWaypoints[1].predictedPeople, 0);
   assert.equal(body.optimizedWaypoints[2].predictedPeople, 100);
+  assert.equal(body.summary.lstmAssisted, true);
+});
+
+test('route optimization queries each candidate arrival slot and scores its matching model forecast', async () => {
+  const api = createApi({ model: true, modelResponder: spots => ({
+    predictions: Object.fromEntries(spots.map(spot => [spot.request_id, {
+      id: spot.id, date_str: spot.date_str, visit_time: spot.visit_time,
+      predicted_people: spot.id === 'start' ? 0 : spot.id === 'a' ? 300 : 200,
+      crowd_ratio: spot.id === 'a'
+        ? (spot.visit_time === '10:00' ? 95 : 5)
+        : spot.id === 'b' ? (spot.visit_time === '11:15' ? 95 : 5) : 30
+    }]))
+  }) });
+  const { status, body } = await api.preview({ previewOnly: false });
+  const requested = api.calls.filter(call => call.url.includes('/predict')).flatMap(call => call.body.spots);
+  assert.equal(status, 200);
+  assert.deepEqual(requested.filter(s => s.id === 'a').map(s => s.visit_time).sort(), ['10:00', '11:15']);
+  assert.deepEqual(requested.filter(s => s.id === 'b').map(s => s.visit_time).sort(), ['10:15', '11:15']);
+  assert.deepEqual(body.optimizedWaypoints.map(w => w.id), ['start', 'b', 'a']);
+  assert.equal(body.optimizedWaypoints[1].predictedPeople, 200);
+  assert.equal(body.optimizedWaypoints[2].predictedPeople, 300);
+  assert.equal(body.summary.lstmAssisted, true);
+});
+
+test('predictions with a mismatched attraction or time are rejected', async () => {
+  const api = createApi({ model: true, modelResponder: spots => ({
+    predictions: Object.fromEntries(spots.map(spot => [spot.request_id, {
+      id: spot.id === 'start' ? 'wrong-spot' : spot.id,
+      date_str: spot.date_str,
+      visit_time: spot.id === 'start' ? spot.visit_time : '09:45',
+      predicted_people: 9999, crowd_ratio: 99
+    }]))
+  }) });
+  const { body } = await api.preview({ previewOnly: false });
+  assert.equal(body.summary.lstmAssisted, false);
+  assert.ok(body.optimizedWaypoints.every(w => w.predictedPeople !== 9999));
+});
+
+test('real model labels and observed-count thresholds reach the route result', async () => {
+  const api = createApi({ model: true, modelResponder: spots => ({
+    predictions: Object.fromEntries(spots.map(spot => [spot.request_id, {
+      id: spot.id, poi_id: spot.poi_id, date_str: spot.date_str, visit_time: spot.visit_time,
+      predicted_people: 700, crowd_ratio: 42,
+      source: 'lstm_historical_one_step', region_id: 'S14', region_name: '大三巴片区',
+      crowd_status_key: 'crowded', p50_count: 300, p85_count: 600
+    }]))
+  }) });
+  const { body } = await api.preview();
+  assert.equal(body.optimizedWaypoints[1].predictionSource, 'lstm_historical_one_step');
+  assert.equal(body.optimizedWaypoints[1].predictionRegionId, 'S14');
+  assert.equal(body.optimizedWaypoints[1].crowdStatusKey, 'crowded');
+  assert.equal(body.optimizedWaypoints[1].thresholdP85, 600);
+  assert.equal(body.optimizedWaypoints[1].thresholdSource, 'observed training visitor counts');
+});
+
+test('a real model response for the wrong POI is discarded', async () => {
+  const api = createApi({ model: true, modelResponder: spots => ({
+    predictions: Object.fromEntries(spots.map(spot => [spot.request_id, {
+      id: spot.id, poi_id: 'ruins', date_str: spot.date_str, visit_time: spot.visit_time,
+      predicted_people: 9999, crowd_ratio: 99, source: 'lstm_live_recursive'
+    }]))
+  }) });
+  const { body } = await api.preview();
+  assert.notEqual(body.optimizedWaypoints[1].predictedPeople, 9999);
+  assert.equal(body.optimizedWaypoints[1].predictionSource, 'embedded_estimate');
+});
+
+test('a response keyed only by attraction cannot stand for several arrival slots', async () => {
+  const api = createApi({ model: true, modelResponder: spots => ({
+    predictions: Object.fromEntries(spots.map(spot => [spot.id, {
+      predicted_people: 9999, crowd_ratio: 99
+    }]))
+  }) });
+  const { body } = await api.preview({ previewOnly: false });
+  assert.ok(body.optimizedWaypoints.slice(1).every(w => w.predictedPeople !== 9999));
+  assert.equal(body.summary.lstmAssisted, false);
 });
 
 test('starting-point-only drafts are predicted without a travel request', async () => {

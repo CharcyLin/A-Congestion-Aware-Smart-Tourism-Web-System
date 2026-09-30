@@ -125,11 +125,11 @@ export const SettingsContent: React.FC<SettingsContentProps> = ({
         <div className="p-2.5 bg-white rounded-lg border border-gray-200/80 text-[11px] space-y-1.5">
           <div className="flex justify-between text-gray-500">
             <span>{t('model_arch')}</span>
-            <span className="font-semibold text-gray-800">Bi-LSTM + Attention (PyTorch)</span>
+            <span className="font-semibold text-gray-800 text-right">{lang === 'en' ? 'Two-layer LSTM (Keras training, NumPy inference)' : lang === 'pt' ? 'LSTM de duas camadas (treino Keras, inferência NumPy)' : lang === 'zh-TW' ? '雙層 LSTM（Keras 訓練、NumPy 推理）' : '双层 LSTM（Keras 训练、NumPy 推理）'}</span>
           </div>
           <div className="flex justify-between text-gray-500">
             <span>{t('service_node')}</span>
-            <span className="font-mono text-gray-800">{lstmStatus?.url || '127.0.0.1:8000 (Internal)'}</span>
+            <span className="font-mono text-gray-800 break-all text-right">{lstmStatus?.url || (lang === 'en' ? 'Not configured' : lang === 'pt' ? 'Não configurado' : lang === 'zh-TW' ? '未設定' : '未配置')}</span>
           </div>
           <div className="flex justify-between text-gray-500">
             <span>{t('exogenous_vars')}</span>
@@ -162,7 +162,7 @@ export const SettingsContent: React.FC<SettingsContentProps> = ({
             </div>
             <div className="p-2 bg-white rounded-lg border border-gray-200">
               <span className="text-gray-400 block text-[10px]">{t('holiday_stage_text')}</span>
-              <span className="font-bold text-gray-800 text-xs">{realtimeEnv.holiday_stage}</span>
+              <span className="font-bold text-gray-800 text-xs">{t(('holiday_stage_' + realtimeEnv.holiday_stage) as any)}</span>
             </div>
           </div>
         </div>
