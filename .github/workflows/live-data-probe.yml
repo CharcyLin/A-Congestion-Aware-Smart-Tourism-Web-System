@@ -1,0 +1,36 @@
+name: Probe public live data from GitHub runner
+on:
+  push:
+    branches: [codex/live-data-probe]
+    paths: [.github/workflows/live-data-probe.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public government and weather APIs
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+          from zoneinfo import ZoneInfo
+          yesterday = datetime.now(ZoneInfo('Asia/Macau')).date() - timedelta(days=1)
+          urls = {f'government_{region}': 'https://www.macaotourism.gov.mo/api/scenic/open/scenicHeat?' + urlencode({'id': region, 'ds': yesterday.strftime('%Y%m%d'), 'hourly': '0'}) for region in ('S14', 'S73')}
+          urls['weather'] = 'https://api.open-meteo.com/v1/forecast?' + urlencode({'latitude': 22.1987, 'longitude': 113.5439, 'hourly': 'precipitation', 'past_days': 4, 'forecast_days': 2, 'timezone': 'Asia/Macau'})
+          for name, url in urls.items():
+              request = Request(url, headers={'User-Agent': 'Mozilla/5.0 (compatible; MacauTourismRoute/1.0)', 'Referer': 'https://www.macaotourism.gov.mo/en/sightseeing/other-attractions/'})
+              try:
+                  with urlopen(request, timeout=15) as response:
+                      data = json.load(response)
+                      count = len(data.get('data', [])) if name.startswith('government') else len(data.get('hourly', {}).get('time', []))
+                      print(f'{name}: HTTP {response.status}, records={count}')
+              except HTTPError as error:
+                  print(f'{name}: HTTP {error.code}')
+              except URLError as error:
+                  print(f'{name}: network error {type(error.reason).__name__}')
+          PY
