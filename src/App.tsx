@@ -1236,7 +1236,6 @@ export default function App() {
   const [envMode, setEnvMode] = useState<'auto' | 'scenario'>('auto');
   const [rainfallMm, setRainfallMm] = useState<number>(0.0);
   const [holidayStage, setHolidayStage] = useState<'none' | 'pre' | 'in' | 'post'>('none');
-  const [isLstmAssisted, setIsLstmAssisted] = useState(false);
   const [realtimeEnv, setRealtimeEnv] = useState<{
     source: string;
     rainfall_prev_1h_mm: number | null;
@@ -2116,7 +2115,6 @@ export default function App() {
           setDynamicOptimizedWaypoints(data.optimizedWaypoints);
         }
         setRouteOptimizationSummary(data.summary || null);
-        setIsLstmAssisted(Boolean(data.summary?.lstmAssisted));
         setIsOptimized(true);
         setHasPendingManualSort(false);
         setIsCustomOrderSaved(Boolean(options?.keepOrder));
@@ -2399,7 +2397,6 @@ export default function App() {
                 lang={lang}
                 isOptimized={isOptimized}
                 setIsOptimized={setIsOptimized}
-                isLstmAssisted={isLstmAssisted}
                 routeOptimizationSummary={routeOptimizationSummary}
                 transportMode={transportMode}
                 handleTransportModeChange={handleTransportModeChange}
@@ -3169,7 +3166,6 @@ export default function App() {
                   lang={lang}
                   isOptimized={isOptimized}
                   setIsOptimized={setIsOptimized}
-                  isLstmAssisted={isLstmAssisted}
                   routeOptimizationSummary={routeOptimizationSummary}
                   transportMode={transportMode}
                   handleTransportModeChange={handleTransportModeChange}

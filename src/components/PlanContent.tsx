@@ -32,7 +32,6 @@ interface PlanContentProps {
   lang?: string;
   isOptimized: boolean;
   setIsOptimized: (opt: boolean) => void;
-  isLstmAssisted: boolean;
   routeOptimizationSummary: any;
   transportMode: 'car' | 'transit' | 'walk' | 'bike';
   handleTransportModeChange: (mode: 'car' | 'transit' | 'walk' | 'bike') => void;
@@ -74,7 +73,6 @@ export const PlanContent: React.FC<PlanContentProps> = ({
   lang = 'zh-CN',
   isOptimized,
   setIsOptimized,
-  isLstmAssisted,
   routeOptimizationSummary,
   transportMode,
   handleTransportModeChange,
@@ -118,17 +116,10 @@ export const PlanContent: React.FC<PlanContentProps> = ({
       <div className="p-3.5 border-b border-gray-100 bg-white space-y-3 shrink-0">
         {isOptimized ? (
           <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 truncate">
-                <ShieldCheck size={15} className="shrink-0 text-emerald-600" />
-                {t('ai_optimized')}
-              </h2>
-              {isLstmAssisted && (
-                <span className="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                  {lang === 'en' ? 'LSTM used' : lang === 'pt' ? 'LSTM usado' : '已使用 LSTM'}
-                </span>
-              )}
-            </div>
+            <h2 className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 truncate">
+              <ShieldCheck size={15} className="shrink-0 text-emerald-600" />
+              {t('ai_optimized')}
+            </h2>
             <p className="text-[11px] text-emerald-700 font-medium leading-relaxed mt-1">
               {isCustomOrderSaved
                 ? (lang === 'en' ? 'Custom visiting order saved and will be used for navigation.' : lang === 'pt' ? 'A ordem personalizada foi guardada e será usada na navegação.' : '已保存自定义游览顺序，导航将按此顺序进行。')
@@ -447,16 +438,6 @@ export const PlanContent: React.FC<PlanContentProps> = ({
             const destinationsCount = currentWaypoints.filter(w => w.type === 'dest').length;
             const waypointTag = isStart ? t('start_point') : `${t('destination_point')} ${destIndex}`;
             const hasPrediction = wp.predictionState === 'ready' && Number.isFinite(wp.predictedPeople);
-            const isLstmPrediction = String(wp.predictionSource || '').startsWith('lstm_');
-            const isChinese = lang === 'zh-CN' || lang === 'zh-TW';
-            const lstmMode = wp.predictionSource === 'lstm_historical_one_step'
-              ? (isChinese ? '历史回放' : lang === 'pt' ? 'histórico' : 'historical')
-              : wp.predictionSource === 'lstm_live_recursive'
-                ? (isChinese ? '递推预测' : lang === 'pt' ? 'recursivo' : 'recursive')
-                : (isChinese ? '实时预测' : lang === 'pt' ? 'ao vivo' : 'live');
-            const predictionSourceLabel = isLstmPrediction
-              ? `LSTM ${lstmMode}${wp.predictionRegionId ? ` · ${isChinese ? '片区' : lang === 'pt' ? 'zona' : 'area'} ${wp.predictionRegionId}` : ''}`
-              : (lang === 'zh-CN' || lang === 'zh-TW' ? '估算' : lang === 'pt' ? 'Estimativa' : 'Estimate');
             const crowdPreview = !isOptimized && (
               <div
                 className="ml-auto flex flex-col items-end gap-0.5 text-right text-[10px] leading-snug"
@@ -476,12 +457,10 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                     <span
                       className={`inline-flex flex-wrap justify-end items-center gap-x-1.5 rounded-md px-1.5 py-0.5 font-bold ${wp.color}`}
                       style={{ backgroundColor: wp.statusBg }}
-                      title={isLstmPrediction ? wp.predictionRegionName : undefined}
                     >
                       <span>~{Math.round(wp.predictedPeople).toLocaleString()} {t('visitors_unit')}</span>
                       <span>{wp.crowdStatus}</span>
                     </span>
-                    <span className="text-[9px] text-gray-400">{predictionSourceLabel}</span>
                   </>
                 ) : (
                   <span className="text-gray-400">{t('data_unavailable')}</span>
@@ -535,8 +514,8 @@ export const PlanContent: React.FC<PlanContentProps> = ({
                             {isOptimized && (
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {wp.predictedPeople !== undefined && wp.predictedPeople !== null && (
-                                  <span className="text-[10px] text-gray-600 font-semibold bg-gray-100 px-1.5 py-0.5 rounded" title={isLstmPrediction ? wp.predictionRegionName : predictionSourceLabel}>
-                                    ~{wp.predictedPeople.toLocaleString()} {t('visitors_unit')} · {predictionSourceLabel}
+                                  <span className="text-[10px] text-gray-600 font-semibold bg-gray-100 px-1.5 py-0.5 rounded">
+                                    ~{wp.predictedPeople.toLocaleString()} {t('visitors_unit')}
                                   </span>
                                 )}
                                 {wp.crowdStatus && (
