@@ -19,6 +19,7 @@ from lstm_runtime import LSTMRuntime
 from forecast_snapshot import ForecastSnapshotSource
 from live_features import MACAU_TZ, LiveSource, feature_row, holiday_stage
 from poi_mapping import POI_TO_REGION
+from runtime_status import runtime_status
 
 ROOT = Path(__file__).resolve().parent
 ARTIFACTS = ROOT / "artifacts"
@@ -220,7 +221,8 @@ class Handler(BaseHTTPRequestHandler):
                              "model_sha256": self.predictor.model_sha256,
                              "mode": "May historical and live when official history is available",
                              "forecast_snapshot_configured": bool(self.predictor.snapshot),
-                             "supported_pois": len(POI_TO_REGION)})
+                             "supported_pois": len(POI_TO_REGION),
+                             "process_resources": runtime_status()})
         elif self.path == "/realtime":
             try:
                 now = datetime.now(MACAU_TZ).replace(tzinfo=None)

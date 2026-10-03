@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "model_version": "holiday_weather_ae04231403f5",
+  "weight_sha256": "ae04231403f50b8edbf76f6493f06a5c043850c72bfebf2f11da1f98d0da5411",
+  "architecture": {
+    "layers": [
+      "LSTM(64,return_sequences=True)",
+      "Dropout(0.2)",
+      "LSTM(32)",
+      "Dropout(0.2)",
+      "Dense(16,relu)",
+      "Dense(1)"
+    ],
+    "lookback": 96,
+    "feature_count": 29,
+    "optimizer": "adam",
+    "loss": "mse"
+  },
+  "training_protocol": {
+    "seed": 7,
+    "epochs_max": 35,
+    "epochs_trained": 30,
+    "best_epoch": 22,
+    "early_stop_patience": 8,
+    "reduce_lr_on_plateau": true,
+    "selection_data": "chronological per-region train validation; April held out for comparison",
+    "may_blind_test_used_for_selection": false,
+    "batch_size": 64,
+    "training_stride": 4,
+    "validation_ratio": 0.2
+  },
+  "artifacts_and_runtime": [
+    {
+      "path": "artifacts/blind_test_report.json",
+      "bytes": 756,
+      "sha256": "c9cd64e012df37a97294c041b0259f4b3cfc812748823a06eab471631d7b5368"
+    },
+    {
+      "path": "artifacts/lstm_weights.npz",
+      "bytes": 140038,
+      "sha256": "ae04231403f50b8edbf76f6493f06a5c043850c72bfebf2f11da1f98d0da5411"
+    },
+    {
+      "path": "artifacts/may_inputs.npz",
+      "bytes": 1561738,
+      "sha256": "f088e38892588767162419a1e509680a22b5822ec3e7c3a42ab10bb855ad99be"
+    },
+    {
+      "path": "artifacts/metadata.json",
+      "bytes": 16483,
+      "sha256": "84f7e954d9bf249984b56bf88c3ecfcaafa9cbe4d864321de6f6b73306be02ec"
+    },
+    {
+      "path": "artifacts/training_report.json",
+      "bytes": 741,
+      "sha256": "e6f5ea8ac9a4c51b228ea6c36bc3aa6d26075b0427275792339c965587984222"
+    },
+    {
+      "path": "server.py",
+      "bytes": 13981,
+      "sha256": "a0b3a369e2b9c1c93386cd852aa68724b3aa83c612e8288db56b6b96a7f7c780"
+    },
+    {
+      "path": "runtime_status.py",
+      "bytes": 786,
+      "sha256": "28fabe4761d9581cca3e166e30b76effabf23579489944a1710e5deaaeb2befb"
+    },
+    {
+      "path": "lstm_runtime.py",
+      "bytes": 2308,
+      "sha256": "8e012aa8ef7b1f338f4ce24053ac710bfae6a785e43b756cd81aa700f729dfc2"
+    },
+    {
+      "path": "live_features.py",
+      "bytes": 8220,
+      "sha256": "90eb71a714c2f6e247672e1edfb64a9854fd8fdc57fac2d4045b7f6d14f6541e"
+    },
+    {
+      "path": "forecast_snapshot.py",
+      "bytes": 6905,
+      "sha256": "70ba291a04402035d4cfd8cd4ab4efdfc287b8628974aa7f6b402d91fc515767"
+    },
+    {
+      "path": "poi_mapping.py",
+      "bytes": 741,
+      "sha256": "f29f25fa2668b5ea6ca5fa513482e070a28f1b7703c7a5710af6e126e5d9f9ce"
+    },
+    {
+      "path": "requirements.txt",
+      "bytes": 15,
+      "sha256": "99f43573522565d7c480efd1f954892948033915df6a4e685327e995d3396eb6"
+    },
+    {
+      "path": "export_may_archive.py",
+      "bytes": 2274,
+      "sha256": "d7cbfa38730b83044a4600db072d9ef6a23b02d98f342ac4a410ea5dff2888ac"
+    },
+    {
+      "path": "enrich_quantiles.py",
+      "bytes": 1620,
+      "sha256": "cb4b2517908f519fededdfb865f8f7443951a7ab97efa16a4167d841a56e0276"
+    }
+  ],
+  "training_source_files": [
+    {
+      "file": "export_lstm_for_service.py",
+      "sha256": "6441d0d6aaa726f37eb2720e62ce0433aa7b0ec86bbbf53144bf3fda521239d9"
+    },
+    {
+      "file": "model_training_evaluation.py",
+      "sha256": "5d9df660035af46c8148338c02c93167fc07ffbbdb192974d818b2ebdd3106d3"
+    },
+    {
+      "file": "golden_week_ablation_test.py",
+      "sha256": "8e121dfb307378601387bec072801db5bd48ab801f103a39230cd11371ac42fb"
+    }
+  ],
+  "evaluation_role": "Deployment retraining; distinct from original ablation checkpoint",
+  "training_environment_note": "Training environment package versions were not recorded at the original export; current package versions must not be presented as historical versions."
+}

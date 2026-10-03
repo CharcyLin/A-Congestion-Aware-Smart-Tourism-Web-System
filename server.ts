@@ -43,6 +43,11 @@ app.get("/api/health", (_req, res) => {
     hasMapboxToken: Boolean(MAPBOX_TOKEN),
     hasLstmService: Boolean(currentLstmServiceUrl),
     lstmServiceUrl: currentLstmServiceUrl,
+    processResources: {
+      rssMiB: Number((process.memoryUsage().rss / 1048576).toFixed(2)),
+      peakRssMiB: Number((process.resourceUsage().maxRSS / 1024).toFixed(2)),
+      uptimeSeconds: Math.round(process.uptime())
+    },
     project: "P2323343_LinYuxuan"
   });
 });
